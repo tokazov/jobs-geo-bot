@@ -27,7 +27,7 @@ from aiogram.enums import ParseMode
 from instagram import generate_post_image, generate_caption, publish_post, delete_post
 
 # ────────── Config ──────────
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8775633587:AAHdvdHUyA59ZLI5Ut1LlZ6bxYCnYtKA7lU")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "")
 DB_PATH = os.getenv("DB_PATH", "/data/jobs.db")
 
