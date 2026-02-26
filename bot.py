@@ -274,11 +274,10 @@ async def cmd_start(msg: Message, state: FSMContext):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="🇬🇪 ქართული", callback_data="lang_ge"),
-            InlineKeyboardButton(text="🇷🇺 Русский", callback_data="lang_ru"),
             InlineKeyboardButton(text="🇬🇧 English", callback_data="lang_en"),
         ]
     ])
-    await msg.answer("🇬🇪 აირჩიეთ ენა / 🇷🇺 Выберите язык / 🇬🇧 Choose language:", reply_markup=kb)
+    await msg.answer("🇬🇪 აირჩიეთ ენა / 🇬🇧 Choose language:", reply_markup=kb)
 
 
 @router.callback_query(F.data.startswith("lang_"))
@@ -610,12 +609,18 @@ async def admin_approve(cb: types.CallbackQuery):
 
     img_buf = generate_post_image(data_json, post_type)
     caption = generate_caption(data_json, post_type, lang)
-    ig_id = await publish_post(None, caption)
+    # Upload image via Telegram to get public URL, then publish to Instagram
+    from instagram import upload_image_to_telegram
+    image_url = await upload_image_to_telegram(bot, img_buf, ADMIN_CHAT_ID)
+    img_buf.seek(0)  # reset for user preview
+    ig_id = None
+    if image_url:
+        ig_id = await publish_post(image_url, caption)
     await mark_post_published(post_id, ig_id)
 
     # notify user
     await bot.send_message(user_id, t("payment_approved", lang))
-    await bot.send_photo(user_id, BufferedInputFile(img_buf.read(), filename="post.png"), caption="Instagram preview")
+    await bot.send_photo(user_id, BufferedInputFile(img_buf.read(), filename="post.png"), caption="✅ Published to Instagram!" if ig_id else "Instagram preview")
 
     await cb.message.edit_caption(caption=cb.message.caption + "\n\n✅ APPROVED", reply_markup=None)
     await cb.answer("Approved!")
@@ -672,15 +677,20 @@ async def on_success_payment(msg: Message, state: FSMContext):
     img_buf = generate_post_image(data_json, post_type)
     caption = generate_caption(data_json, post_type, lang)
 
-    # try publish (stub for now)
-    ig_id = await publish_post(None, caption)
+    # Upload image via Telegram to get public URL, then publish to Instagram
+    from instagram import upload_image_to_telegram
+    image_url = await upload_image_to_telegram(bot, img_buf, ADMIN_CHAT_ID)
+    img_buf.seek(0)  # reset for user preview
+    ig_id = None
+    if image_url:
+        ig_id = await publish_post(image_url, caption)
     await mark_post_published(post_id, ig_id)
 
     # send confirmation
     await msg.answer(t("published", lang))
 
     # send image preview to user
-    await msg.answer_photo(BufferedInputFile(img_buf.read(), filename="post.png"), caption="Instagram preview")
+    await msg.answer_photo(BufferedInputFile(img_buf.read(), filename="post.png"), caption="✅ Published to Instagram!" if ig_id else "Instagram preview")
 
     # notify admin
     if ADMIN_CHAT_ID:
