@@ -128,25 +128,27 @@ def generate_post_image(data: dict, post_type: str) -> BytesIO:
 
 # --------------- Image hosting via Telegram ---------------
 
-async def upload_image_to_telegram(bot, image_bytes: BytesIO, chat_id: str) -> str | None:
+async def upload_image_to_hosting(image_bytes: BytesIO) -> str | None:
     """
-    Upload image to Telegram (send to admin chat + delete) to get a public URL.
-    Instagram API needs a publicly accessible image_url.
-    Returns file URL or None.
+    Upload image to catbox.moe to get a public URL for Instagram API.
+    Returns public URL or None.
     """
-    from aiogram.types import BufferedInputFile
     try:
-        input_file = BufferedInputFile(image_bytes.getvalue(), filename="post.png")
-        msg = await bot.send_photo(chat_id=chat_id, photo=input_file, caption="📸 Uploading to Instagram...")
-        # Get file URL
-        file_id = msg.photo[-1].file_id
-        file = await bot.get_file(file_id)
-        file_url = f"https://api.telegram.org/file/bot{bot.token}/{file.file_path}"
-        # Delete the temp message
-        await bot.delete_message(chat_id=chat_id, message_id=msg.message_id)
-        return file_url
+        async with aiohttp.ClientSession() as session:
+            form = aiohttp.FormData()
+            form.add_field("reqtype", "fileupload")
+            form.add_field("fileToUpload", image_bytes.getvalue(),
+                           filename="post.png", content_type="image/png")
+            async with session.post("https://catbox.moe/user/api.php", data=form) as resp:
+                if resp.status == 200:
+                    url = (await resp.text()).strip()
+                    if url.startswith("http"):
+                        log.info("Image uploaded to %s", url)
+                        return url
+                log.error("Catbox upload failed: %s", await resp.text())
+                return None
     except Exception as e:
-        log.error("Failed to upload image to Telegram: %s", e)
+        log.error("Failed to upload image: %s", e)
         return None
 
 

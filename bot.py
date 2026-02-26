@@ -73,6 +73,7 @@ TEXTS: dict[str, dict[str, str]] = {
     "cancel": {"ge": "❌ გაუქმება", "ru": "❌ Отмена", "en": "❌ Cancel"},
     "published": {"ge": "✅ გამოქვეყნდა! 48 საათის შემდეგ ავტომატურად წაიშლება.", "ru": "✅ Опубликовано! Автоудаление через 48ч.", "en": "✅ Published! Auto-delete in 48h."},
     "cancelled": {"ge": "გაუქმებულია.", "ru": "Отменено.", "en": "Cancelled."},
+    "too_long": {"ge": "⚠️ ტექსტი ძალიან გრძელია! მაქსიმუმ {max} სიმბოლო. ახლა: {cur}. სცადე თავიდან.", "ru": "⚠️ Слишком длинный текст! Максимум {max} символов. Сейчас: {cur}. Попробуй ещё раз.", "en": "⚠️ Text too long! Maximum {max} characters. Current: {cur}. Try again."},
     "post_expired": {"ge": "⏰ თქვენი პოსტი ვადაგასულია.", "ru": "⏰ Ваш пост истёк.", "en": "⏰ Your post has expired."},
     "payment_title_resume": {"ge": "რეზიუმე გამოქვეყნება", "ru": "Публикация резюме", "en": "Resume publication"},
     "payment_title_job": {"ge": "ვაკანსიის გამოქვეყნება", "ru": "Публикация вакансии", "en": "Vacancy publication"},
@@ -82,9 +83,9 @@ TEXTS: dict[str, dict[str, str]] = {
     "pay_stars": {"ge": "⭐ Telegram Stars", "ru": "⭐ Telegram Stars", "en": "⭐ Telegram Stars"},
     "pay_bank": {"ge": "💳 საბანკო გადარიცხვა", "ru": "💳 Перевод на карту", "en": "💳 Bank transfer"},
     "bank_details": {
-        "ge": "💳 <b>საბანკო გადარიცხვა</b>\n\nIBAN: <code>GE21TB7866536110100007</code>\nმიმღები: Taymuraz Tokazov\nთანხა: {amount} ₾\n\nგადარიცხვის შემდეგ გამოგზავნეთ ჩეკის სკრინშოტი 👇",
-        "ru": "💳 <b>Оплата переводом</b>\n\nIBAN: <code>GE21TB7866536110100007</code>\nПолучатель: Taymuraz Tokazov\nСумма: {amount} ₾\n\nПосле перевода отправьте скриншот чека 👇",
-        "en": "💳 <b>Bank transfer</b>\n\nIBAN: <code>GE21TB7866536110100007</code>\nRecipient: Taymuraz Tokazov\nAmount: {amount} ₾\n\nAfter transfer, send a screenshot of the receipt 👇",
+        "ge": "💳 <b>საბანკო გადარიცხვა</b>\n\nIBAN: <code>GE51TB7866536010100033</code>\nმიმღები: Taymuraz Tokazov\nთანხა: {amount} ₾\n\nგადარიცხვის შემდეგ გამოგზავნეთ ჩეკის სკრინშოტი 👇",
+        "ru": "💳 <b>Оплата переводом</b>\n\nIBAN: <code>GE51TB7866536010100033</code>\nПолучатель: Taymuraz Tokazov\nСумма: {amount} ₾\n\nПосле перевода отправьте скриншот чека 👇",
+        "en": "💳 <b>Bank transfer</b>\n\nIBAN: <code>GE51TB7866536010100033</code>\nRecipient: Taymuraz Tokazov\nAmount: {amount} ₾\n\nAfter transfer, send a screenshot of the receipt 👇",
     },
     "receipt_received": {
         "ge": "✅ ჩეკი მიღებულია! ადმინისტრატორი შეამოწმებს და გამოაქვეყნებს თქვენს პოსტს.",
@@ -310,9 +311,23 @@ async def start_job(cb: types.CallbackQuery, state: FSMContext):
     await cb.answer()
 
 
+# ────────── Length check ──────────
+MAX_FIELD_LEN = 200
+
+async def check_len(msg: Message, state: FSMContext, max_len: int = MAX_FIELD_LEN) -> bool:
+    """Return True if text is too long (caller should return)."""
+    if msg.text and len(msg.text) > max_len:
+        d = await state.get_data()
+        lang = d.get("lang", "en")
+        await msg.answer(t("too_long", lang).format(max=max_len, cur=len(msg.text)))
+        return True
+    return False
+
+
 # ────────── Resume flow ──────────
 @router.message(ResumeForm.name)
 async def r_name(msg: Message, state: FSMContext):
+    if await check_len(msg, state): return
     d = await state.get_data()
     await state.update_data(r_name=msg.text)
     await msg.answer(t("ask_profession", d["lang"]))
@@ -321,6 +336,7 @@ async def r_name(msg: Message, state: FSMContext):
 
 @router.message(ResumeForm.profession)
 async def r_prof(msg: Message, state: FSMContext):
+    if await check_len(msg, state): return
     d = await state.get_data()
     await state.update_data(r_profession=msg.text)
     await msg.answer(t("ask_experience", d["lang"]))
@@ -329,6 +345,7 @@ async def r_prof(msg: Message, state: FSMContext):
 
 @router.message(ResumeForm.experience)
 async def r_exp(msg: Message, state: FSMContext):
+    if await check_len(msg, state): return
     d = await state.get_data()
     await state.update_data(r_experience=msg.text)
     await msg.answer(t("ask_skills", d["lang"]))
@@ -337,6 +354,7 @@ async def r_exp(msg: Message, state: FSMContext):
 
 @router.message(ResumeForm.skills)
 async def r_skills(msg: Message, state: FSMContext):
+    if await check_len(msg, state): return
     d = await state.get_data()
     await state.update_data(r_skills=msg.text)
     await msg.answer(t("ask_salary", d["lang"]))
@@ -345,6 +363,7 @@ async def r_skills(msg: Message, state: FSMContext):
 
 @router.message(ResumeForm.salary)
 async def r_salary(msg: Message, state: FSMContext):
+    if await check_len(msg, state): return
     d = await state.get_data()
     await state.update_data(r_salary=msg.text)
     await msg.answer(t("ask_contact", d["lang"]))
@@ -353,6 +372,7 @@ async def r_salary(msg: Message, state: FSMContext):
 
 @router.message(ResumeForm.contact)
 async def r_contact(msg: Message, state: FSMContext):
+    if await check_len(msg, state): return
     d = await state.get_data()
     await state.update_data(r_contact=msg.text)
     await msg.answer(t("ask_city", d["lang"]), reply_markup=city_kb(d["lang"]))
@@ -369,6 +389,7 @@ async def r_city(cb: types.CallbackQuery, state: FSMContext):
 
 @router.message(ResumeForm.city)
 async def r_city_text(msg: Message, state: FSMContext):
+    if await check_len(msg, state, 100): return
     await state.update_data(r_city=msg.text)
     await _show_resume_preview(msg, state, msg.from_user.id)
 
@@ -397,6 +418,7 @@ async def _show_resume_preview(msg, state: FSMContext, user_id: int):
 # ────────── Job flow ──────────
 @router.message(JobForm.company)
 async def j_company(msg: Message, state: FSMContext):
+    if await check_len(msg, state): return
     d = await state.get_data()
     await state.update_data(j_company=msg.text)
     await msg.answer(t("ask_position", d["lang"]))
@@ -405,6 +427,7 @@ async def j_company(msg: Message, state: FSMContext):
 
 @router.message(JobForm.position)
 async def j_pos(msg: Message, state: FSMContext):
+    if await check_len(msg, state): return
     d = await state.get_data()
     await state.update_data(j_position=msg.text)
     await msg.answer(t("ask_duties", d["lang"]))
@@ -413,6 +436,7 @@ async def j_pos(msg: Message, state: FSMContext):
 
 @router.message(JobForm.duties)
 async def j_duties(msg: Message, state: FSMContext):
+    if await check_len(msg, state): return
     d = await state.get_data()
     await state.update_data(j_duties=msg.text)
     await msg.answer(t("ask_requirements", d["lang"]))
@@ -421,6 +445,7 @@ async def j_duties(msg: Message, state: FSMContext):
 
 @router.message(JobForm.requirements)
 async def j_req(msg: Message, state: FSMContext):
+    if await check_len(msg, state): return
     d = await state.get_data()
     await state.update_data(j_requirements=msg.text)
     await msg.answer(t("ask_salary", d["lang"]))
@@ -429,6 +454,7 @@ async def j_req(msg: Message, state: FSMContext):
 
 @router.message(JobForm.salary)
 async def j_salary(msg: Message, state: FSMContext):
+    if await check_len(msg, state): return
     d = await state.get_data()
     await state.update_data(j_salary=msg.text)
     await msg.answer(t("ask_employment", d["lang"]))
@@ -437,6 +463,7 @@ async def j_salary(msg: Message, state: FSMContext):
 
 @router.message(JobForm.employment)
 async def j_empl(msg: Message, state: FSMContext):
+    if await check_len(msg, state): return
     d = await state.get_data()
     await state.update_data(j_employment=msg.text)
     await msg.answer(t("ask_contact", d["lang"]))
@@ -445,6 +472,7 @@ async def j_empl(msg: Message, state: FSMContext):
 
 @router.message(JobForm.contact)
 async def j_contact(msg: Message, state: FSMContext):
+    if await check_len(msg, state): return
     d = await state.get_data()
     await state.update_data(j_contact=msg.text)
     await msg.answer(t("ask_city", d["lang"]), reply_markup=city_kb(d["lang"]))
@@ -461,6 +489,7 @@ async def j_city(cb: types.CallbackQuery, state: FSMContext):
 
 @router.message(JobForm.city)
 async def j_city_text(msg: Message, state: FSMContext):
+    if await check_len(msg, state, 100): return
     await state.update_data(j_city=msg.text)
     await _show_job_preview(msg, state, msg.from_user.id)
 
@@ -610,8 +639,8 @@ async def admin_approve(cb: types.CallbackQuery):
     img_buf = generate_post_image(data_json, post_type)
     caption = generate_caption(data_json, post_type, lang)
     # Upload image via Telegram to get public URL, then publish to Instagram
-    from instagram import upload_image_to_telegram
-    image_url = await upload_image_to_telegram(bot, img_buf, ADMIN_CHAT_ID)
+    from instagram import upload_image_to_hosting
+    image_url = await upload_image_to_hosting(img_buf)
     img_buf.seek(0)  # reset for user preview
     ig_id = None
     if image_url:
@@ -678,8 +707,8 @@ async def on_success_payment(msg: Message, state: FSMContext):
     caption = generate_caption(data_json, post_type, lang)
 
     # Upload image via Telegram to get public URL, then publish to Instagram
-    from instagram import upload_image_to_telegram
-    image_url = await upload_image_to_telegram(bot, img_buf, ADMIN_CHAT_ID)
+    from instagram import upload_image_to_hosting
+    image_url = await upload_image_to_hosting(img_buf)
     img_buf.seek(0)  # reset for user preview
     ig_id = None
     if image_url:
