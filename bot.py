@@ -768,6 +768,55 @@ async def auto_delete_loop():
 
 
 
+
+# ────────── Admin /approve <post_id> ──────────
+@router.message(Command("approve"))
+async def cmd_approve(msg: Message):
+    admin_id = int(os.getenv("ADMIN_CHAT_ID", "0"))
+    if msg.from_user.id != admin_id:
+        return
+    args = msg.text.strip().split()
+    if len(args) < 2:
+        await msg.answer("Usage: /approve <post_id>")
+        return
+    try:
+        post_id = int(args[1])
+    except ValueError:
+        await msg.answer("Invalid post_id")
+        return
+
+    async with db.execute("SELECT user_id, type, data FROM posts WHERE id=?", (post_id,)) as cur:
+        row = await cur.fetchone()
+    if not row:
+        await msg.answer(f"Post #{post_id} not found")
+        return
+
+    user_id, post_type, data_json = row
+    data = json.loads(data_json)
+    lang = await get_lang(user_id)
+
+    payment_id = await create_payment(user_id, post_id, 0, "bank_transfer_manual")
+    await mark_post_paid(post_id, payment_id)
+
+    img_buf = generate_post_image(data, post_type)
+    caption = generate_caption(data, post_type, lang)
+
+    from instagram import upload_image_to_hosting
+    image_url = await upload_image_to_hosting(img_buf)
+    img_buf.seek(0)
+    ig_id = None
+    if image_url:
+        ig_id = await publish_post(image_url, caption)
+    await mark_post_published(post_id, ig_id)
+
+    await bot.send_message(user_id, t("payment_approved", lang))
+    await bot.send_photo(user_id, BufferedInputFile(img_buf.read(), filename="post.png"),
+                         caption="✅ Published to Instagram!" if ig_id else "✅ Approved (Instagram publish failed)")
+
+    ig_status = f"Instagram: {ig_id}" if ig_id else "Instagram: FAILED"
+    await msg.answer(f"✅ Post #{post_id} approved!\nUser: {user_id}\n{ig_status}")
+
+
 # ────────── Admin /db command ──────────
 @router.message(Command("admin_db"))
 async def cmd_admin_db(msg: Message):
