@@ -767,6 +767,39 @@ async def auto_delete_loop():
             log.error("auto_delete_loop error: %s", e)
 
 
+
+# ────────── Admin /db command ──────────
+@router.message(Command("admin_db"))
+async def cmd_admin_db(msg: Message):
+    admin_id = int(os.getenv("ADMIN_CHAT_ID", "0"))
+    if msg.from_user.id != admin_id:
+        return
+    async with db.execute("""
+        SELECT p.id, p.user_id, p.type, p.status, p.created_at,
+               pay.amount_stars, pay.status as pay_status, pay.telegram_payment_id,
+               p.data
+        FROM posts p
+        LEFT JOIN payments pay ON p.payment_id = pay.id
+        ORDER BY p.id DESC LIMIT 20
+    """) as cur:
+        rows = await cur.fetchall()
+    if not rows:
+        await msg.answer("No posts found.")
+        return
+    lines = ["📊 <b>Последние посты (20):</b>\n"]
+    for row in rows:
+        post_id, user_id, ptype, status, created_at, stars, pay_status, tg_pay_id, data_json = row
+        data = json.loads(data_json) if data_json else {}
+        first_val = list(data.values())[0] if data else "—"
+        lines.append(
+            f"#{post_id} | {ptype} | <b>{status}</b>\n"
+            f"  User: {user_id} | Stars: {stars} | {created_at[:16]}\n"
+            f"  Pay: {pay_status or '—'} | {(tg_pay_id or '—')[:20]}\n"
+            f"  [{first_val[:30]}]"
+        )
+    await msg.answer("\n\n".join(lines), parse_mode="HTML")
+
+
 # ────────── Main ──────────
 async def main():
     await init_db()
