@@ -769,6 +769,43 @@ async def auto_delete_loop():
 
 
 
+
+# ────────── Admin /send_image <post_id> ──────────
+@router.message(Command("send_image"))
+async def cmd_send_image(msg: Message):
+    admin_id = int(os.getenv("ADMIN_CHAT_ID", "0"))
+    if msg.from_user.id != admin_id:
+        return
+    args = msg.text.strip().split()
+    if len(args) < 2:
+        await msg.answer("Usage: /send_image <post_id>")
+        return
+    try:
+        post_id = int(args[1])
+    except ValueError:
+        await msg.answer("Invalid post_id")
+        return
+
+    async with db.execute("SELECT user_id, type, data FROM posts WHERE id=?", (post_id,)) as cur:
+        row = await cur.fetchone()
+    if not row:
+        await msg.answer(f"Post #{post_id} not found")
+        return
+
+    user_id, post_type, data_json = row
+    data = json.loads(data_json)
+    lang = await get_lang(user_id)
+
+    img_buf = generate_post_image(data, post_type)
+    caption = generate_caption(data, post_type, lang)
+
+    # Send image to admin
+    await msg.answer_photo(
+        BufferedInputFile(img_buf.read(), filename=f"post_{post_id}.png"),
+        caption=f"📸 Post #{post_id}\n\n{caption[:800]}"
+    )
+
+
 # ────────── Admin /approve <post_id> ──────────
 @router.message(Command("approve"))
 async def cmd_approve(msg: Message):
